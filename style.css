@@ -61,6 +61,17 @@ label,
     font-size: 0.85rem;
 }
 
+/* ================================
+   SELECT2 KHUSUS DALAM MODAL
+================================ */
+.modal .select2-container {
+  z-index: 1056 !important;
+}
+
+.modal .select2-dropdown {
+  z-index: 1056 !important;
+}
+
 
 /* ================================
    DATATABLE STYLE
