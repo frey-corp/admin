@@ -8,257 +8,420 @@ const SUPABASE_ANON_KEY = "sb_publishable_uFul_JGxo6iQJ8bVWb3YwQ_kmbWDvrI";
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // =========================
-// GLOBAL VARIABLES
+// GLOBAL
 // =========================
 let currentUser = null;
-let dealsTable = null;
+let dealModal = null;
 
 // =========================
-// UTILITY FUNCTIONS
+// UTIL NUMBER FORMAT (FIX FINAL)
 // =========================
-function formatRupiah(num) {
-    return "Rp " + Number(num).toLocaleString("id-ID");
+function formatNumber(val) {
+  if (!val || isNaN(val)) return "";
+  return Number(val).toLocaleString("id-ID");
 }
 
-function calcFees(amount) {
-    const adminFee = Math.round(amount * 0.15);
-    const agencyFee = Math.round(amount * 0.05);
-    const kolFee = amount - adminFee - agencyFee;
-    return { adminFee, agencyFee, kolFee };
+function parseNumber(val) {
+  if (!val) return 0;
+  return Number(val.toString().replace(/[^\d]/g, ""));
 }
+
+function today() {
+  return new Date().toISOString().split("T")[0];
+}
+
+// =========================
+// DOCUMENT READY
+// =========================
+$(document).ready(() => {
+
+  dealModal = new bootstrap.Modal(document.getElementById("dealModal"), {
+    backdrop: "static",
+    keyboard: true
+  });
+
+  const loginModal = new bootstrap.Modal(document.getElementById("loginModal"), {
+    backdrop: "static",
+    keyboard: false
+  });
+  loginModal.show();
+
+  $("#loginBtn").click(login);
+});
 
 // =========================
 // LOGIN
 // =========================
-$(document).ready(async function () {
-    const loginModal = new bootstrap.Modal(document.getElementById('loginModal'), {
-        backdrop: 'static',
-        keyboard: false
-    });
-    loginModal.show();
+async function login() {
+  const username = $("#username").val().trim();
+  const password = $("#password").val().trim();
 
-    $('#loginBtn').click(async function () {
-        const username = $('#username').val().trim();
-        const password = $('#password').val().trim();
+  if (!username || !password) {
+    Swal.fire("Error", "Username & Password wajib diisi", "error");
+    return;
+  }
 
-        if (!username || !password) {
-            Swal.fire('Error', 'Username dan password harus diisi', 'error');
-            return;
-        }
+  const { data, error } = await supabase
+    .from("users")
+    .select("*")
+    .eq("username", username)
+    .eq("role", 2)
+    .single();
 
-        // Ambil user dari Supabase
-        const { data: users, error } = await supabase
-            .from('users')
-            .select('*')
-            .eq('username', username)
-            .eq('role', 2) // hanya admin
-            .limit(1);
+  if (error || !data) {
+    Swal.fire("Error", "Admin tidak ditemukan", "error");
+    return;
+  }
 
-        if (error || users.length === 0) {
-            Swal.fire('Error', 'Username tidak ditemukan / bukan admin', 'error');
-            return;
-        }
+  if (password !== data.password_hash) {
+    Swal.fire("Error", "Password salah", "error");
+    return;
+  }
 
-        const user = users[0];
+  currentUser = data;
+  $("#loginModal").modal("hide");
+  $("#dashboard").removeClass("d-none");
 
-        // Untuk demo kita pakai dummy hash, di produksi pakai bcrypt verify
-        if (password !== user.password_hash) {
-            Swal.fire('Error', 'Password salah', 'error');
-            return;
-        }
-
-        currentUser = user;
-        loginModal.hide();
-        $('#dashboard').removeClass('d-none');
-
-        await loadFilters();
-        await loadDeals();
-    });
-});
-
-// =========================
-// LOAD FILTERS (KOL & Brands)
-// =========================
-async function loadFilters() {
-    // Load KOL yang dimapping ke admin ini
-    const { data: kolMapping } = await supabase
-        .from('admin_kol_mapping')
-        .select('kol_user_id, kol_user:kol_user_id(full_name)')
-        .eq('admin_user_id', currentUser.id);
-
-    $('#filterKOL').empty().append('<option value="">ALL</option>');
-    $('#kolSelect').empty();
-    kolMapping.forEach(k => {
-        $('#filterKOL').append(`<option value="${k.kol_user_id}">${k.kol_user.full_name}</option>`);
-        $('#kolSelect').append(`<option value="${k.kol_user_id}">${k.kol_user.full_name}</option>`);
-    });
-    $('#filterKOL, #kolSelect').select2({ width: '100%' });
-
-    // Load Brands
-    const { data: brands } = await supabase.from('brands').select('*');
-    $('#brandSelect').empty();
-    brands.forEach(b => {
-        $('#brandSelect').append(`<option value="${b.id}">${b.brand_name}</option>`);
-    });
-
-    // Set default date filter
-    const today = new Date().toISOString().split('T')[0];
-    const past3Month = new Date();
-    past3Month.setMonth(past3Month.getMonth() - 3);
-    const past3MonthStr = past3Month.toISOString().split('T')[0];
-
-    $('#filterDateFrom').val(past3MonthStr);
-    $('#filterDateTo').val(today);
-
-    $('#dealDate').val(today);
+  await loadMaster();
+  await loadDeals();
 }
 
 // =========================
-// LOAD DEALS TABLE
+// LOAD MASTER DATA
+// =========================
+async function loadMaster() {
+
+  // ===== KOL
+  const { data: kolMap } = await supabase
+    .from("admin_kol_mapping")
+    .select(`
+      kol_user_id,
+      kol:kol_user_id (
+        id,
+        full_name
+      )
+    `)
+    .eq("admin_user_id", currentUser.id);
+
+  $("#kolSelect").empty().append(`<option value=""></option>`);
+  $("#filterKOL").empty().append(`<option value="">ALL</option>`);
+
+  kolMap.forEach(k => {
+    if (k.kol) {
+      $("#kolSelect").append(
+        `<option value="${k.kol.id}">${k.kol.full_name}</option>`
+      );
+      $("#filterKOL").append(
+        `<option value="${k.kol.id}">${k.kol.full_name}</option>`
+      );
+    }
+  });
+
+  $("#kolSelect").select2({
+    width: "100%",
+    placeholder: "Pilih KOL",
+    allowClear: true,
+    dropdownParent: $("#dealModal")
+  });
+
+  $("#filterKOL").select2({
+    width: "100%",
+    placeholder: "All KOL",
+    allowClear: true
+  });
+
+  // ===== BRAND
+  const { data: brands } = await supabase.from("brands").select("*");
+
+  $("#brandSelect").empty().append(`<option value=""></option>`);
+  brands.forEach(b => {
+    $("#brandSelect").append(
+      `<option value="${b.id}">${b.brand_name}</option>`
+    );
+  });
+
+  $("#brandSelect").select2({
+    width: "100%",
+    placeholder: "Pilih Brand",
+    allowClear: true,
+    dropdownParent: $("#dealModal")
+  });
+
+  // ===== DEFAULT FILTER DATE
+  const from = new Date();
+  from.setMonth(from.getMonth() - 3);
+  $("#filterDateFrom").val(from.toISOString().split("T")[0]);
+  $("#filterDateTo").val(today());
+}
+
+// =========================
+// LOAD DEALS
 // =========================
 async function loadDeals() {
-    const dateFrom = $('#filterDateFrom').val();
-    const dateTo = $('#filterDateTo').val();
-    const kolId = $('#filterKOL').val();
-    const status = $('#filterStatus').val();
 
-    let query = supabase
-        .from('deals')
-        .select(`
-            id,
-            deal_date,
-            job_description,
-            deadline,
-            amount_dealing,
-            status,
-            kol_user:kol_user_id(full_name),
-            brand:brand_id(brand_name)
-        `)
-        .gte('deal_date', dateFrom)
-        .lte('deal_date', dateTo);
+  let query = supabase
+    .from("deals")
+    .select(`
+      id,
+      deal_date,
+      job_description,
+      deadline,
+      amount_dealing,
+      status,
+      kol:kol_user_id(full_name),
+      brand:brand_id(brand_name)
+    `)
+    .gte("deal_date", $("#filterDateFrom").val())
+    .lte("deal_date", $("#filterDateTo").val())
+    .order("deal_date", { ascending: false });
 
-    if (kolId) query = query.eq('kol_user_id', kolId);
-    if (status) query = query.eq('status', status);
+  if ($("#filterKOL").val())
+    query = query.eq("kol_user_id", $("#filterKOL").val());
 
-    const { data, error } = await query.order('deal_date', { ascending: false });
+  if ($("#filterStatus").val())
+    query = query.eq("status", $("#filterStatus").val());
 
-    if (error) {
-        Swal.fire('Error', 'Gagal load data deals', 'error');
-        return;
-    }
+  const { data } = await query;
 
-    // Destroy existing datatable
-    if ($.fn.DataTable.isDataTable('#dealsTable')) {
-        $('#dealsTable').DataTable().destroy();
-    }
-    $('#dealsTable tbody').empty();
+  if ($.fn.DataTable.isDataTable("#dealsTable"))
+    $("#dealsTable").DataTable().destroy();
 
-    data.forEach(d => {
-        $('#dealsTable tbody').append(`
-            <tr>
-                <td>${d.deal_date}</td>
-                <td>${d.brand.brand_name}</td>
-                <td>${d.kol_user.full_name}</td>
-                <td>${d.job_description}</td>
-                <td>${d.deadline || ''}</td>
-                <td>${formatRupiah(d.amount_dealing)}</td>
-                <td>${d.status}</td>
-                <td>
-                    <button class="btn btn-sm btn-primary editDealBtn" data-id="${d.id}">Edit</button>
-                </td>
-            </tr>
-        `);
-    });
+  $("#dealsTable tbody").empty();
 
-    dealsTable = $('#dealsTable').DataTable({
-        responsive: true
-    });
+  data.forEach(d => {
+    $("#dealsTable tbody").append(`
+      <tr>
+        <td>${d.deal_date}</td>
+        <td>${d.brand.brand_name}</td>
+        <td>${d.kol.full_name}</td>
+        <td>${d.job_description}</td>
+        <td>${d.deadline || ""}</td>
+        <td>Rp ${formatNumber(d.amount_dealing)}</td>
+        <td>${d.status}</td>
+        <td>
+          ${d.status === "ON_PROGRESS" ? `
+            <button class="btn btn-sm btn-primary editDealBtn" data-id="${d.id}">
+              Edit
+            </button>
+          ` : ``}
+          <button class="btn btn-sm btn-secondary printInvoiceBtn" data-id="${d.id}">
+            Print
+          </button>
+        </td>
+      </tr>
+    `);
+  });
+
+  $("#dealsTable").DataTable({ responsive: true });
 }
 
 // =========================
 // FILTER CHANGE
 // =========================
-$('#filterDateFrom, #filterDateTo, #filterKOL, #filterStatus').change(loadDeals);
+$("#filterDateFrom, #filterDateTo, #filterKOL, #filterStatus")
+  .on("change", loadDeals);
 
 // =========================
-// ADD DEAL MODAL
+// ADD DEAL
 // =========================
-const dealModal = new bootstrap.Modal(document.getElementById('dealModal'));
+$("#addDealBtn").click(() => {
+  $("#dealForm")[0].reset();
+  $("#dealForm").removeData("id");
 
-$('#addDealBtn').click(function () {
-    $('#dealModalTitle').text('Add Deal');
-    $('#dealForm')[0].reset();
-    $('#kolSelect, #brandSelect, #statusSelect').val(null).trigger('change');
-    $('#kolFee').val('');
-    dealModal.show();
+  $("#dealDate").val(today());
+  $("#statusSelect").val("ON_PROGRESS");
+
+  $("#brandSelect, #kolSelect").val(null).trigger("change");
+  $("#adminFee, #agencyFee, #kolFee").val("");
+
+  dealModal.show();
 });
 
 // =========================
-// AUTO CALC FEES
+// AUTO CALC (FIX FINAL – AMAN TYPE TEXT)
 // =========================
-$('#amountDealing, #adminFee, #agencyFee').on('input', function () {
-    const amount = parseFloat($('#amountDealing').val()) || 0;
-    let admin = parseFloat($('#adminFee').val()) || Math.round(amount * 0.15);
-    let agency = parseFloat($('#agencyFee').val()) || Math.round(amount * 0.05);
-    const kol = amount - admin - agency;
-    $('#adminFee').val(admin);
-    $('#agencyFee').val(agency);
-    $('#kolFee').val(kol);
+$("#amountDealing").on("input", function () {
+
+  const rawAmount = parseNumber(this.value);
+
+  if (!rawAmount) {
+    $("#adminFee, #agencyFee, #kolFee").val("");
+    return;
+  }
+
+  const admin = Math.round(rawAmount * 0.15);
+  const agency = Math.round(rawAmount * 0.05);
+  const kol = rawAmount - admin - agency;
+
+  this.value = formatNumber(rawAmount);
+  $("#adminFee").val(formatNumber(admin));
+  $("#agencyFee").val(formatNumber(agency));
+  $("#kolFee").val(formatNumber(kol));
 });
 
 // =========================
 // SAVE DEAL
 // =========================
-$('#dealForm').submit(async function (e) {
-    e.preventDefault();
+$("#dealForm").submit(async e => {
+  e.preventDefault();
 
-    const dealData = {
-        deal_date: $('#dealDate').val(),
-        brand_id: parseInt($('#brandSelect').val()),
-        kol_user_id: $('#kolSelect').val(),
-        admin_user_id: currentUser.id,
-        job_description: $('#jobDesc').val(),
-        deadline: $('#deadline').val() || null,
-        amount_dealing: parseFloat($('#amountDealing').val()),
-        admin_fee: parseFloat($('#adminFee').val()),
-        agency_fee: parseFloat($('#agencyFee').val()),
-        kol_fee: parseFloat($('#kolFee').val()),
-        brief_sow: $('#briefSow').val() || null,
-        content_link: $('#contentLink').val() || null,
-        transfer_date: $('#transferDate').val() || null,
-        status: $('#statusSelect').val()
-    };
+  if ($("#statusSelect").val() === "FINISH" && !$("#transferDate").val()) {
+    Swal.fire("Error", "Status FINISH wajib isi Tanggal Transfer", "error");
+    return;
+  }
 
-    if (dealData.status === 'FINISH' && !dealData.transfer_date) {
-        Swal.fire('Error', 'Transfer date harus diisi saat status Finish', 'error');
-        return;
-    }
+  const payload = {
+    deal_date: $("#dealDate").val(),
+    brand_id: Number($("#brandSelect").val()),
+    kol_user_id: $("#kolSelect").val(),
+    admin_user_id: currentUser.id,
+    job_description: $("#jobDesc").val(),
+    deadline: $("#deadline").val() || null,
+    amount_dealing: parseNumber($("#amountDealing").val()),
+    admin_fee: parseNumber($("#adminFee").val()),
+    agency_fee: parseNumber($("#agencyFee").val()),
+    kol_fee: parseNumber($("#kolFee").val()),
+    brief_sow: $("#briefSow").val() || null,
+    content_link: $("#contentLink").val() || null,
+    transfer_date: $("#transferDate").val() || null,
+    status: $("#statusSelect").val()
+  };
 
-    Swal.fire({
-        title: 'Saving...',
-        allowOutsideClick: false,
-        didOpen: () => Swal.showLoading()
-    });
+  const id = $("#dealForm").data("id");
 
-    const { data, error } = await supabase
-        .from('deals')
-        .insert([dealData]);
+  Swal.fire({ title: "Saving...", didOpen: () => Swal.showLoading() });
 
-    Swal.close();
+  const query = id
+    ? supabase.from("deals").update(payload).eq("id", id)
+    : supabase.from("deals").insert([payload]);
 
-    if (error) {
-        Swal.fire('Error', 'Gagal menyimpan deal', 'error');
-    } else {
-        Swal.fire('Success', 'Deal berhasil disimpan', 'success');
-        dealModal.hide();
-        await loadDeals();
-    }
+  const { error } = await query;
+  Swal.close();
+
+  if (error) {
+    Swal.fire("Error", "Gagal menyimpan data", "error");
+    return;
+  }
+
+  Swal.fire("Success", "Data berhasil disimpan", "success");
+  dealModal.hide();
+  loadDeals();
 });
 
 // =========================
-// EDIT DEAL BUTTON (Future)
+// EDIT DEAL
 // =========================
-$(document).on('click', '.editDealBtn', function () {
-    const id = $(this).data('id');
-    Swal.fire('Info', `Edit deal ID: ${id} (feature nanti)`, 'info');
+$(document).on("click", ".editDealBtn", async function () {
+
+  const id = $(this).data("id");
+
+  const { data } = await supabase
+    .from("deals")
+    .select("*")
+    .eq("id", id)
+    .single();
+
+  $("#dealForm").data("id", id);
+
+  $("#dealDate").val(data.deal_date);
+  $("#brandSelect").val(data.brand_id).trigger("change");
+  $("#kolSelect").val(data.kol_user_id).trigger("change");
+  $("#jobDesc").val(data.job_description);
+  $("#deadline").val(data.deadline);
+  $("#amountDealing").val(formatNumber(data.amount_dealing));
+  $("#adminFee").val(formatNumber(data.admin_fee));
+  $("#agencyFee").val(formatNumber(data.agency_fee));
+  $("#kolFee").val(formatNumber(data.kol_fee));
+  $("#briefSow").val(data.brief_sow);
+  $("#contentLink").val(data.content_link);
+  $("#transferDate").val(data.transfer_date);
+  $("#statusSelect").val(data.status);
+
+  dealModal.show();
 });
+
+// =========================
+// PRINT INVOICE (SEMUA STATUS)
+// =========================
+$(document).on("click", ".printInvoiceBtn", async function () {
+
+  const id = $(this).data("id");
+
+  const { data: deal } = await supabase
+    .from("deals")
+    .select("deal_date, job_description, amount_dealing, kol_user_id, brand_id")
+    .eq("id", id)
+    .single();
+
+  const { data: brand } = await supabase
+    .from("brands")
+    .select("brand_name")
+    .eq("id", deal.brand_id)
+    .single();
+
+  const { data: kol } = await supabase
+    .from("users")
+    .select(`
+      full_name,
+      instagram_account,
+      tiktok_account,
+      whatsapp_number,
+      bank_name,
+      bank_account_number
+    `)
+    .eq("id", deal.kol_user_id)
+    .single();
+
+  generateInvoicePDF({
+    deal_date: deal.deal_date,
+    brand: brand?.brand_name,
+    kol: kol.full_name,
+    job: deal.job_description,
+    amount: deal.amount_dealing,
+    instagram: kol.instagram_account,
+    tiktok: kol.tiktok_account,
+    whatsapp: kol.whatsapp_number,
+    bank: kol.bank_name,
+    rekening: kol.bank_account_number
+  });
+});
+
+// =========================
+// PDF INVOICE
+// =========================
+function generateInvoicePDF(d) {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+
+  let y = 20;
+  doc.setFontSize(16);
+  doc.text("INVOICE DEAL KOL", 105, y, { align: "center" });
+
+  y += 15;
+  doc.setFontSize(11);
+
+  const row = (l, v) => {
+    doc.text(l, 20, y);
+    doc.text(":", 70, y);
+    doc.text(String(v || "-"), 75, y);
+    y += 8;
+  };
+
+  row("Date Deal", d.deal_date);
+  row("Brand", d.brand);
+  row("KOL", d.kol);
+  row("Job Description", d.job);
+  row("Amount", "Rp " + formatNumber(d.amount));
+
+  y += 5;
+  doc.line(20, y, 190, y);
+  y += 10;
+
+  row("Instagram", d.instagram);
+  row("TikTok", d.tiktok);
+  row("WhatsApp", d.whatsapp);
+  row("Bank", d.bank);
+  row("No Rekening", d.rekening);
+
+  doc.save(`Invoice_${d.brand}_${d.kol}.pdf`);
+}
