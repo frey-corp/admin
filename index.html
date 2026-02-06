@@ -92,72 +92,109 @@
 
     <!-- MODAL ADD/EDIT DEAL -->
     <div class="modal fade" id="dealModal" tabindex="-1">
-        <div class="modal-dialog modal-lg modal-dialog-scrollable">
-            <div class="modal-content p-3">
-                <h5 id="dealModalTitle">Add Deal</h5>
+        <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+            <div class="modal-content">
+
+            <!-- HEADER -->
+            <div class="modal-header py-2">
+                <h5 class="modal-title" id="dealModalTitle">Add Deal</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+
+            <!-- BODY (SCROLLABLE) -->
+            <div class="modal-body">
                 <form id="dealForm">
-                    <div class="row g-2">
-                        <div class="col-md-6">
-                            <label for="dealDate" class="form-label">Date Deal</label>
-                            <input type="date" id="dealDate" class="form-control" required>
-                        </div>
-                        <div class="col-md-6">
-                            <label for="brandSelect" class="form-label">Brand</label>
-                            <select id="brandSelect" class="form-select" required></select>
-                        </div>
-                        <div class="col-md-6">
-                            <label for="kolSelect" class="form-label">KOL</label>
-                            <select id="kolSelect" class="form-select" required></select>
-                        </div>
-                        <div class="col-md-6">
-                            <label for="statusSelect" class="form-label">Status</label>
-                            <select id="statusSelect" class="form-select" required>
-                                <option value="ON_PROGRESS" selected>On Progress</option>
-                                <option value="FINISH">Finish</option>
-                            </select>
-                        </div>
-                        <div class="col-12">
-                            <label for="jobDesc" class="form-label">Job Description</label>
-                            <textarea id="jobDesc" class="form-control" rows="2" required></textarea>
-                        </div>
-                        <div class="col-md-6">
-                            <label for="deadline" class="form-label">Deadline</label>
-                            <input type="date" id="deadline" class="form-control">
-                        </div>
-                        <div class="col-md-6">
-                            <label for="transferDate" class="form-label">Transfer Date</label>
-                            <input type="date" id="transferDate" class="form-control">
-                        </div>
-                        <div class="col-md-4">
-                            <label for="amountDealing" class="form-label">Amount Dealing</label>
-                            <input type="number" id="amountDealing" class="form-control" required>
-                        </div>
-                        <div class="col-md-4">
-                            <label for="adminFee" class="form-label">Admin Fee (15%)</label>
-                            <input type="number" id="adminFee" class="form-control">
-                        </div>
-                        <div class="col-md-4">
-                            <label for="agencyFee" class="form-label">Agency Fee (5%)</label>
-                            <input type="number" id="agencyFee" class="form-control">
-                        </div>
-                        <div class="col-12">
-                            <label for="kolFee" class="form-label">KOL Fee</label>
-                            <input type="number" id="kolFee" class="form-control" readonly>
-                        </div>
-                        <div class="col-12">
-                            <label for="briefSow" class="form-label">Brief / SOW</label>
-                            <textarea id="briefSow" class="form-control" rows="2"></textarea>
-                        </div>
-                        <div class="col-12">
-                            <label for="contentLink" class="form-label">Link Konten</label>
-                            <textarea id="contentLink" class="form-control" rows="1"></textarea>
-                        </div>
+                <div class="row g-2">
+
+                    <!-- Date Deal -->
+                    <div class="col-6">
+                    <label class="form-label">Date Deal *</label>
+                    <input type="date" id="dealDate" class="form-control" required>
                     </div>
-                    <div class="mt-3 text-end">
-                        <button type="submit" class="btn btn-primary">Save</button>
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+
+                    <!-- Brand -->
+                    <div class="col-6">
+                    <label class="form-label">Brand *</label>
+                    <select id="brandSelect" class="form-select" required></select>
                     </div>
+
+                    <!-- KOL -->
+                    <div class="col-12">
+                    <label class="form-label">KOL *</label>
+                    <select id="kolSelect" class="form-select" required></select>
+                    </div>
+
+                    <!-- Job Desc -->
+                    <div class="col-12">
+                    <label class="form-label">Job Description *</label>
+                    <textarea id="jobDesc" class="form-control" rows="3" required></textarea>
+                    </div>
+
+                    <!-- Deadline -->
+                    <div class="col-6">
+                    <label class="form-label">Deadline</label>
+                    <input type="date" id="deadline" class="form-control">
+                    </div>
+
+                    <!-- Transfer Date -->
+                    <div class="col-6">
+                    <label class="form-label">Transfer Date</label>
+                    <input type="date" id="transferDate" class="form-control">
+                    </div>
+
+                    <!-- Amount -->
+                    <div class="col-12">
+                    <label class="form-label">Amount Dealing *</label>
+                    <input type="text" id="amountDealing" class="form-control" required>
+                    </div>
+
+                    <!-- Fees -->
+                    <div class="col-6">
+                    <label class="form-label">Admin Fee (15%)</label>
+                    <input type="text" id="adminFee" class="form-control">
+                    </div>
+
+                    <div class="col-6">
+                    <label class="form-label">Agency Fee (5%)</label>
+                    <input type="text" id="agencyFee" class="form-control">
+                    </div>
+
+                    <div class="col-12">
+                    <label class="form-label">KOL Fee</label>
+                    <input type="text" id="kolFee" class="form-control" readonly>
+                    </div>
+
+                    <!-- Brief -->
+                    <div class="col-12">
+                    <label class="form-label">Brief / SOW</label>
+                    <textarea id="briefSow" class="form-control" rows="3"></textarea>
+                    </div>
+
+                    <!-- Content Link -->
+                    <div class="col-12">
+                    <label class="form-label">Link Konten</label>
+                    <textarea id="contentLink" class="form-control" rows="2"></textarea>
+                    </div>
+
+                    <!-- Status -->
+                    <div class="col-12">
+                    <label class="form-label">Status</label>
+                    <select id="statusSelect" class="form-select">
+                        <option value="ON_PROGRESS">On Progress</option>
+                        <option value="FINISH">Finish</option>
+                    </select>
+                    </div>
+
+                </div>
                 </form>
+            </div>
+
+            <!-- FOOTER -->
+            <div class="modal-footer py-2">
+                <button type="submit" form="dealForm" class="btn btn-primary">Save</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+            </div>
+
             </div>
         </div>
     </div>
@@ -171,6 +208,7 @@
     <script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
     <script src="https://cdn.datatables.net/responsive/2.5.0/js/dataTables.responsive.min.js"></script>
     <script src="https://cdn.datatables.net/responsive/2.5.0/js/responsive.bootstrap5.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
     <!-- Supabase JS -->
     <script type="module" src="script.js"></script>
