@@ -14,7 +14,7 @@ let currentUser = null;
 let dealModal = null;
 
 // =========================
-// UTIL NUMBER FORMAT (FIX FINAL)
+// UTIL
 // =========================
 function formatNumber(val) {
   if (!val || isNaN(val)) return "";
@@ -47,6 +47,14 @@ $(document).ready(() => {
   loginModal.show();
 
   $("#loginBtn").click(login);
+
+  // Type promote change
+  $("input[name='typePromote']").on("change", handleTypePromote);
+
+  // Realtime KOL fee calculation
+  $("#amountDealing, #adminFee, #adminFee2, #agencyFee")
+    .on("input", calculateKolFee);
+
 });
 
 // =========================
@@ -79,6 +87,9 @@ async function login() {
   }
 
   currentUser = data;
+
+  $("#welcomeText").text(`Welcome, ${data.full_name} - Frey Corp`);
+
   $("#loginModal").modal("hide");
   $("#dashboard").removeClass("d-none");
 
@@ -87,11 +98,50 @@ async function login() {
 }
 
 // =========================
-// LOAD MASTER DATA
+// TYPE PROMOTE HANDLER
+// =========================
+function handleTypePromote() {
+  const type = $("input[name='typePromote']:checked").val();
+
+  if (type === "PAID") {
+    $("#amountWrapper").show();
+    $("#kolFeeWrapper").show();
+  } else {
+    $("#amountWrapper").hide();
+    $("#kolFeeWrapper").hide();
+    $("#amountDealing").val("");
+    $("#kolFee").val("");
+  }
+}
+
+// =========================
+// KOL FEE CALCULATION
+// =========================
+function calculateKolFee() {
+
+  const type = $("input[name='typePromote']:checked").val();
+  if (type !== "PAID") return;
+
+  const amount = parseNumber($("#amountDealing").val());
+  const admin1 = parseNumber($("#adminFee").val());
+  const admin2 = parseNumber($("#adminFee2").val());
+  const agency = parseNumber($("#agencyFee").val());
+
+  if (!amount) {
+    $("#kolFee").val("");
+    return;
+  }
+
+  const kol = amount - admin1 - admin2 - agency;
+
+  $("#kolFee").val(formatNumber(kol < 0 ? 0 : kol));
+}
+
+// =========================
+// LOAD MASTER
 // =========================
 async function loadMaster() {
 
-  // ===== KOL
   const { data: kolMap } = await supabase
     .from("admin_kol_mapping")
     .select(`
@@ -108,48 +158,33 @@ async function loadMaster() {
 
   kolMap.forEach(k => {
     if (k.kol) {
-      $("#kolSelect").append(
-        `<option value="${k.kol.id}">${k.kol.full_name}</option>`
-      );
-      $("#filterKOL").append(
-        `<option value="${k.kol.id}">${k.kol.full_name}</option>`
-      );
+      $("#kolSelect").append(`<option value="${k.kol.id}">${k.kol.full_name}</option>`);
+      $("#filterKOL").append(`<option value="${k.kol.id}">${k.kol.full_name}</option>`);
     }
   });
 
   $("#kolSelect").select2({
     width: "100%",
-    placeholder: "Pilih KOL",
-    allowClear: true,
     dropdownParent: $("#dealModal")
   });
 
-  $("#filterKOL").select2({
-    width: "100%",
-    placeholder: "All KOL",
-    allowClear: true
-  });
+  $("#filterKOL").select2({ width: "100%" });
 
-  // ===== BRAND
   const { data: brands } = await supabase.from("brands").select("*");
 
   $("#brandSelect").empty().append(`<option value=""></option>`);
   brands.forEach(b => {
-    $("#brandSelect").append(
-      `<option value="${b.id}">${b.brand_name}</option>`
-    );
+    $("#brandSelect").append(`<option value="${b.id}">${b.brand_name}</option>`);
   });
 
   $("#brandSelect").select2({
     width: "100%",
-    placeholder: "Pilih Brand",
-    allowClear: true,
     dropdownParent: $("#dealModal")
   });
 
-  // ===== DEFAULT FILTER DATE
   const from = new Date();
   from.setMonth(from.getMonth() - 3);
+
   $("#filterDateFrom").val(from.toISOString().split("T")[0]);
   $("#filterDateTo").val(today());
 }
@@ -158,65 +193,92 @@ async function loadMaster() {
 // LOAD DEALS
 // =========================
 async function loadDeals() {
+  try {
 
-  let query = supabase
-    .from("deals")
-    .select(`
-      id,
-      deal_date,
-      job_description,
-      deadline,
-      amount_dealing,
-      status,
-      kol:kol_user_id(full_name),
-      brand:brand_id(brand_name)
-    `)
-    .gte("deal_date", $("#filterDateFrom").val())
-    .lte("deal_date", $("#filterDateTo").val())
-    .order("deal_date", { ascending: false });
+    let query = supabase
+      .from("deals")
+      .select(`
+        *,
+        kol:kol_user_id(full_name),
+        brand:brand_id(brand_name),
+        admin:admin_user_id(full_name)
+      `)
+      .order("deal_date", { ascending: false })
+      .range(0, 10000); // ambil banyak data
 
-  if ($("#filterKOL").val())
-    query = query.eq("kol_user_id", $("#filterKOL").val());
+    const { data, error } = await query;
 
-  if ($("#filterStatus").val())
-    query = query.eq("status", $("#filterStatus").val());
+    if (error) {
+      console.error(error);
+      alert("Gagal load data");
+      return;
+    }
 
-  const { data } = await query;
+    if ($.fn.DataTable.isDataTable("#dealsTable")) {
+      $("#dealsTable").DataTable().destroy();
+    }
 
-  if ($.fn.DataTable.isDataTable("#dealsTable"))
-    $("#dealsTable").DataTable().destroy();
+    $("#dealsTable tbody").empty();
 
-  $("#dealsTable tbody").empty();
+    if (!data || data.length === 0) {
+      $("#dealsTable tbody").append(`
+        <tr>
+          <td colspan="21" class="text-center">No Data</td>
+        </tr>
+      `);
+    } else {
 
-  data.forEach(d => {
-    $("#dealsTable tbody").append(`
-      <tr>
-        <td>${d.deal_date}</td>
-        <td>${d.brand.brand_name}</td>
-        <td>${d.kol.full_name}</td>
-        <td>${d.job_description}</td>
-        <td>${d.deadline || ""}</td>
-        <td>Rp ${formatNumber(d.amount_dealing)}</td>
-        <td>${d.status}</td>
-        <td>
-          ${d.status === "ON_PROGRESS" ? `
-            <button class="btn btn-sm btn-primary editDealBtn" data-id="${d.id}">
-              Edit
-            </button>
-          ` : ``}
-          <button class="btn btn-sm btn-secondary printInvoiceBtn" data-id="${d.id}">
-            Print
-          </button>
-        </td>
-      </tr>
-    `);
-  });
+      data.forEach(d => {
 
-  $("#dealsTable").DataTable({ responsive: true });
+        $("#dealsTable tbody").append(`
+          <tr>
+            <td>${d.deal_date || ""}</td>
+            <td>${d.brand?.brand_name || ""}</td>
+            <td>${d.kol?.full_name || ""}</td>
+            <td>${d.admin?.full_name || ""}</td>
+            <td>${d.job_description || ""}</td>
+            <td>${d.deadline || ""}</td>
+            <td>${d.type_promote === "PAID" ? "Rp " + formatNumber(d.amount_dealing) : "-"}</td>
+            <td>${d.admin_fee != null ? "Rp " + formatNumber(d.admin_fee) : "-"}</td>
+            <td>${d.admin_fee_2 != null ? "Rp " + formatNumber(d.admin_fee_2) : "-"}</td>
+            <td>${d.agency_fee != null ? "Rp " + formatNumber(d.agency_fee) : "-"}</td>
+            <td>${d.kol_fee != null ? "Rp " + formatNumber(d.kol_fee) : "-"}</td>
+            <td>${d.brief_sow || ""}</td>
+            <td>${d.content_link || ""}</td>
+            <td>${d.transfer_date || ""}</td>
+            <td>${d.status}</td>
+            <td>${d.type_promote}</td>
+            <td>${d.notes || ""}</td>
+            <td>
+              ${d.status === "ON_PROGRESS" ? `
+                <button class="btn btn-sm btn-primary editDealBtn" data-id="${d.id}">
+                  Edit
+                </button>
+              ` : ""}
+              <button class="btn btn-sm btn-secondary printInvoiceBtn" data-id="${d.id}">
+                Print
+              </button>
+            </td>
+          </tr>
+        `);
+
+      });
+    }
+
+    $("#dealsTable").DataTable({
+      responsive: true,
+      pageLength: 10
+    });
+
+  } catch (err) {
+    console.error(err);
+    alert("Terjadi kesalahan");
+  }
 }
 
+
 // =========================
-// FILTER CHANGE
+// FILTER
 // =========================
 $("#filterDateFrom, #filterDateTo, #filterKOL, #filterStatus")
   .on("change", loadDeals);
@@ -225,38 +287,19 @@ $("#filterDateFrom, #filterDateTo, #filterKOL, #filterStatus")
 // ADD DEAL
 // =========================
 $("#addDealBtn").click(() => {
+
   $("#dealForm")[0].reset();
   $("#dealForm").removeData("id");
 
   $("#dealDate").val(today());
   $("#statusSelect").val("ON_PROGRESS");
+  $("#brandSelect").val(null).trigger("change");
+  $("#kolSelect").val(null).trigger("change");
 
-  $("#brandSelect, #kolSelect").val(null).trigger("change");
-  $("#adminFee, #agencyFee, #kolFee").val("");
+  $("input[name='typePromote'][value='PAID']").prop("checked", true);
+  handleTypePromote();
 
   dealModal.show();
-});
-
-// =========================
-// AUTO CALC (FIX FINAL – AMAN TYPE TEXT)
-// =========================
-$("#amountDealing").on("input", function () {
-
-  const rawAmount = parseNumber(this.value);
-
-  if (!rawAmount) {
-    $("#adminFee, #agencyFee, #kolFee").val("");
-    return;
-  }
-
-  const admin = Math.round(rawAmount * 0.15);
-  const agency = Math.round(rawAmount * 0.05);
-  const kol = rawAmount - admin - agency;
-
-  this.value = formatNumber(rawAmount);
-  $("#adminFee").val(formatNumber(admin));
-  $("#agencyFee").val(formatNumber(agency));
-  $("#kolFee").val(formatNumber(kol));
 });
 
 // =========================
@@ -264,6 +307,13 @@ $("#amountDealing").on("input", function () {
 // =========================
 $("#dealForm").submit(async e => {
   e.preventDefault();
+
+  const type = $("input[name='typePromote']:checked").val();
+
+  if (type === "PAID" && !parseNumber($("#amountDealing").val())) {
+    Swal.fire("Error", "Paid Promote wajib isi Amount Dealing", "error");
+    return;
+  }
 
   if ($("#statusSelect").val() === "FINISH" && !$("#transferDate").val()) {
     Swal.fire("Error", "Status FINISH wajib isi Tanggal Transfer", "error");
@@ -276,11 +326,14 @@ $("#dealForm").submit(async e => {
     kol_user_id: $("#kolSelect").val(),
     admin_user_id: currentUser.id,
     job_description: $("#jobDesc").val(),
+    notes: $("#notes").val() || null,
+    type_promote: type,
     deadline: $("#deadline").val() || null,
-    amount_dealing: parseNumber($("#amountDealing").val()),
+    amount_dealing: type === "PAID" ? parseNumber($("#amountDealing").val()) : null,
     admin_fee: parseNumber($("#adminFee").val()),
+    admin_fee_2: parseNumber($("#adminFee2").val()),
     agency_fee: parseNumber($("#agencyFee").val()),
-    kol_fee: parseNumber($("#kolFee").val()),
+    kol_fee: type === "PAID" ? parseNumber($("#kolFee").val()) : null,
     brief_sow: $("#briefSow").val() || null,
     content_link: $("#contentLink").val() || null,
     transfer_date: $("#transferDate").val() || null,
@@ -299,7 +352,7 @@ $("#dealForm").submit(async e => {
   Swal.close();
 
   if (error) {
-    Swal.fire("Error", "Gagal menyimpan data", "error");
+    Swal.fire("Error", error.message, "error");
     return;
   }
 
@@ -327,9 +380,17 @@ $(document).on("click", ".editDealBtn", async function () {
   $("#brandSelect").val(data.brand_id).trigger("change");
   $("#kolSelect").val(data.kol_user_id).trigger("change");
   $("#jobDesc").val(data.job_description);
+  $("#notes").val(data.notes);
+
+  $("input[name='typePromote'][value='" + data.type_promote + "']")
+    .prop("checked", true);
+
+  handleTypePromote();
+
   $("#deadline").val(data.deadline);
   $("#amountDealing").val(formatNumber(data.amount_dealing));
   $("#adminFee").val(formatNumber(data.admin_fee));
+  $("#adminFee2").val(formatNumber(data.admin_fee_2));
   $("#agencyFee").val(formatNumber(data.agency_fee));
   $("#kolFee").val(formatNumber(data.kol_fee));
   $("#briefSow").val(data.brief_sow);
@@ -339,6 +400,7 @@ $(document).on("click", ".editDealBtn", async function () {
 
   dealModal.show();
 });
+
 
 // =========================
 // PRINT INVOICE (SEMUA STATUS)
