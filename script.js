@@ -114,13 +114,34 @@ function handleTypePromote() {
   }
 }
 
+$("#amountDealing, #adminFee, #adminFee2, #agencyFee").on("input", function () {
+  
+  let cursorPos = this.selectionStart;
+  let value = $(this).val().replace(/\./g, "");
+  
+  if (!value) {
+    $(this).val("");
+    calculateKolFee();
+    return;
+  }
+
+  let formatted = formatNumber(parseInt(value));
+  $(this).val(formatted);
+
+  calculateKolFee();
+});
+
+
 // =========================
 // KOL FEE CALCULATION
 // =========================
 function calculateKolFee() {
 
   const type = $("input[name='typePromote']:checked").val();
-  if (type !== "PAID") return;
+  if (type !== "PAID") {
+    $("#kolFee").val("");
+    return;
+  }
 
   const amount = parseNumber($("#amountDealing").val());
   const admin1 = parseNumber($("#adminFee").val());
@@ -136,6 +157,7 @@ function calculateKolFee() {
 
   $("#kolFee").val(formatNumber(kol < 0 ? 0 : kol));
 }
+
 
 // =========================
 // LOAD MASTER
@@ -201,7 +223,7 @@ async function loadDeals() {
         *,
         kol:kol_user_id(full_name),
         brand:brand_id(brand_name),
-        admin:admin_user_id(full_name)
+        admin:admin_user_id(full_name, alamat)
       `)
       .order("deal_date", { ascending: false })
       .range(0, 10000); // ambil banyak data
@@ -258,6 +280,10 @@ async function loadDeals() {
               <button class="btn btn-sm btn-secondary printInvoiceBtn" data-id="${d.id}">
                 Print
               </button>
+              <button class="btn btn-sm btn-warning copyAlamat"
+                      data-alamat="${d.admin?.alamat || ''}">
+                  Alamat KOL
+              </button>
             </td>
           </tr>
         `);
@@ -267,7 +293,8 @@ async function loadDeals() {
 
     $("#dealsTable").DataTable({
       responsive: true,
-      pageLength: 10
+      pageLength: 10,
+      dom: 'Bfrtip'
     });
 
   } catch (err) {
@@ -487,3 +514,36 @@ function generateInvoicePDF(d) {
 
   doc.save(`Invoice_${d.brand}_${d.kol}.pdf`);
 }
+
+// =========================
+// Copy Alamat
+// =========================
+$(document).on("click", ".copyAlamat", function () {
+
+    const alamat = $(this).data("alamat");
+
+    if (!alamat) {
+        Swal.fire({
+            icon: "warning",
+            title: "Alamat kosong",
+            timer: 1500,
+            showConfirmButton: false
+        });
+        return;
+    }
+
+    navigator.clipboard.writeText(alamat).then(() => {
+        Swal.fire({
+            icon: "success",
+            title: "Alamat KOL berhasil disalin!",
+            timer: 1000,
+            showConfirmButton: false
+        });
+    }).catch(() => {
+        Swal.fire({
+            icon: "error",
+            title: "Gagal menyalin alamat"
+        });
+    });
+
+});
