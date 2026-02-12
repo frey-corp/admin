@@ -14,6 +14,11 @@ label,
 .form-select {
     font-size: 0.85rem;
     padding: 0.35rem 0.5rem;
+}
+
+/* height fix hanya untuk input & select */
+input.form-control,
+select.form-select {
     height: 32px;
 }
 
@@ -152,6 +157,12 @@ table.dataTable.dtr-inline.collapsed
     .form-select {
         font-size: 0.75rem;
         padding: 0.2rem 0.35rem;
+    }
+
+
+    /* height fix hanya untuk input & select */
+    input.form-control,
+    select.form-select {
         height: 28px;
     }
 
@@ -231,4 +242,20 @@ table.dataTable.dtr-inline.collapsed
 .table-responsive {
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
+}
+
+.table-responsive {
+    max-height: 450px;
+    overflow-y: auto;
+    overflow-x: auto;
+    position: relative;
+}
+
+/* Sticky Header */
+#dealsTable thead th {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    background-color: #212529; /* sama seperti table-dark */
+    color: white;
 }
