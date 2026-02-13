@@ -225,8 +225,17 @@ async function loadDeals() {
         brand:brand_id(brand_name),
         admin:admin_user_id(full_name, alamat)
       `)
-      .order("deal_date", { ascending: false })
-      .range(0, 10000); // ambil banyak data
+      .gte("deal_date", $("#filterDateFrom").val())
+      .lte("deal_date", $("#filterDateTo").val())
+      .order("deal_date", { ascending: false });
+
+    if ($("#filterKOL").val()) {
+      query = query.eq("kol_user_id", $("#filterKOL").val());
+    }
+
+    if ($("#filterStatus").val()) {
+      query = query.eq("status", $("#filterStatus").val());
+    }
 
     const { data, error } = await query;
 
@@ -236,19 +245,12 @@ async function loadDeals() {
       return;
     }
 
-    if ($.fn.DataTable.isDataTable("#dealsTable")) {
+    if ($.fn.DataTable.isDataTable("#dealsTable"))
       $("#dealsTable").DataTable().destroy();
-    }
 
     $("#dealsTable tbody").empty();
 
-    if (!data || data.length === 0) {
-      $("#dealsTable tbody").append(`
-        <tr>
-          <td colspan="21" class="text-center">No Data</td>
-        </tr>
-      `);
-    } else {
+    if (data && data.length > 0) {
 
       data.forEach(d => {
 
@@ -257,14 +259,13 @@ async function loadDeals() {
             <td>${d.deal_date || ""}</td>
             <td>${d.brand?.brand_name || ""}</td>
             <td>${d.kol?.full_name || ""}</td>
-            <td>${d.admin?.full_name || ""}</td>
             <td>${d.job_description || ""}</td>
             <td>${d.deadline || ""}</td>
             <td>${d.type_promote === "PAID" ? "Rp " + formatNumber(d.amount_dealing) : "-"}</td>
-            <td>${d.admin_fee != null ? "Rp " + formatNumber(d.admin_fee) : "-"}</td>
-            <td>${d.admin_fee_2 != null ? "Rp " + formatNumber(d.admin_fee_2) : "-"}</td>
-            <td>${d.agency_fee != null ? "Rp " + formatNumber(d.agency_fee) : "-"}</td>
-            <td>${d.kol_fee != null ? "Rp " + formatNumber(d.kol_fee) : "-"}</td>
+            <td>${d.admin_fee != null  ? "Rp " + formatNumber(d.admin_fee) : "-"}</td>
+            <td>${d.admin_fee_2 != null  ? "Rp " + formatNumber(d.admin_fee_2) : "-"}</td>
+            <td>${d.agency_fee != null  ? "Rp " + formatNumber(d.agency_fee) : "-"}</td>
+            <td>${d.kol_fee != null  ? "Rp " + formatNumber(d.kol_fee) : "-"}</td>
             <td>${d.brief_sow || ""}</td>
             <td>${d.content_link || ""}</td>
             <td>${d.transfer_date || ""}</td>
@@ -293,8 +294,10 @@ async function loadDeals() {
 
     $("#dealsTable").DataTable({
       responsive: true,
-      pageLength: 10,
-      dom: 'Bfrtip'
+      dom: 'Blfrtip',
+      buttons: ['copy', 'excel', 'pdf'],
+      lengthMenu: [10, 25, 50, 100],
+      pageLength: 25
     });
 
   } catch (err) {
@@ -302,7 +305,6 @@ async function loadDeals() {
     alert("Terjadi kesalahan");
   }
 }
-
 
 // =========================
 // FILTER
